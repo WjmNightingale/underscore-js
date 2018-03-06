@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>JS之事件防抖</title>
+    <style>
+        #container {
+            width: 100%;
+            height: 200px;
+            line-height: 200px;
+            text-align: center;
+            color: #fff;
+            background: #444;
+            font-size: 30px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="container"></div>
+    <button id="button">点击取消debounce</button>
+    <script>
+        //场景：频繁的事件触发，导致复杂的回调函数或是ajax请求被多次调用，那么可能造成卡顿
+        //防抖的基本原理：事件触发n秒之内不再触发事件，才执行回调函数或是事件处理函数
+        //如果n秒内又触发了新的事件，那么就以新的事件为标准，同样n秒后才执行
+        function test() {
+            let count = 1
+            let container = document.getElementById('container')
+            function getUserAction() {
+                container.innerHTML = count++
+            }
+            let setUserAction = debounce3(getUserAction,10000,true)
+            container.onmousemove = setUserAction
+            document.getElementById('button').addEventListener('click',function () {
+                setUserAction.cancel()
+            })
+        }
+        //原始版本，n秒后才执行
+        function debounce0(func,wait) {
+            let timeout
+            return function () {
+                clearTimeout(timeout)
+                timeout = setTimeout(func,wait)
+            }
+        }
+        //改进1，修正this指向以及arguments参数传入
+        function debounce1(func,wait) {
+            let timeout 
+            return function () {
+                let context = this
+                let arg = arguments
+                clearTimeout(timeout)
+                timeout = setTimeout(function(){
+                    func.apply(context,arg)
+                },wait)
+            }   
+        }
+        //改进2，希望事件触发时立刻执行函数，然后等到停止触发 n 秒后，才可以重新触发执行。
+        //加入immediate参数判断是否立即执行
+        function debounce2(func,wait,immediate){
+            let timeout,result
+            return function () {
+                let context = this
+                let arg = arguments
+                if (timeout) {
+                    clearTimeout(timeout)
+                }
+                if (immediate) {
+                    let callNow = !timeout
+                    timeout = setTimeout(function () {
+                        timeout = null
+                    },wait)
+                    if (callNow) result = func.apply(context,arg)
+                } else {
+                    timeout = setTimeout(function () {
+                        func.apply(context,arg)
+                    },wait)
+                }
+                return result
+            }
+        }
+        //额外功能，希望能取消 debounce 函数
+        //比如debounce 的时间间隔是 10 秒钟，immediate 为 true，
+        //这样的话，只有等 10 秒后才能重新触发事件
+        //现在希望有一个按钮，点击后，取消防抖，这样再去触发，就可以又立刻执行
+        function debounce3(func,wait,immediate) {
+            let timeout,result
+            let debounced = function () {
+                let context = this
+                let arg = arguments
+                if (timeout) {
+                    clearTimeout(timeout)
+                }
+                if (immediate) {
+                    let callNow = !timeout
+                    timeout = setTimeout(function () {
+                        timeout = null
+                    },wait)
+                    if (callNow) {
+                        result = func.apply(context,arg)
+                    }
+                } else {
+                    timeout = setTimeout(function () {
+                        func.apply(context,arg)
+                    },wait)
+                }
+                return result
+            }
+            debounced.cancel = function () {
+                clearTimeout(timeout)
+                timeout = null
+            }
+            return debounced
+        }
+        test()
+        
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Js之事件节流throttle</title>
+    <style>
+        #container {
+            width: 100%;
+            height: 200px;
+            line-height: 200px;
+            text-align: center;
+            color: #fff;
+            background: #444;
+            font-size: 30px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="container"></div>
+    <script>
+        //节流原理
+        //如果你持续触发事件，每隔一段时间，只执行一次事件。
+        //根据首次是否执行以及结束后是否执行，效果有所不同，实现的方式也有所不同
+        //可以用leading代表首次是否执行，trailing表示结束后是否再执行一次
+
+        //实现一：使用时间戳
+        //使用时间戳，当触发事件时，我们取出当前一个时间戳，然后减去开始设置的时间戳（一般开始的时间戳为0）
+        //如果时间差大于设置的时间周期，就执行函数，然后更新时间戳为当前的时间戳
+        //如果小于，那么就不执行，这样便做了避免事件频繁触发
+
+        function throttle1(func, wait) {
+            let context, args
+            let previous = 0
+            return function () {
+                let now = +new Date() 
+                //1.运算符new的优先级高于一元运算符+，
+                //所以过程可以分解为：var time=new Date();+time
+                //2.+time --> ToNumber(time)
+                //3.time是个日期对象，根据ToNumber的转换规则，所以相当于：ToNumber(ToPrimitive(time))
+                //4.根据ToPrimitive的转换规则：ToNumber(time.valueOf())，time.valueOf()就是 原始值 得到的是个时间戳，假设time.valueOf()=1503479124652
+                //5.所以ToNumber(1503479124652)返回值是1503479124652这个数字。
+                //6.类似的操作有：+'1' ==> 1 (字符串转数字) 1 + '' ==> '1' (数字转字符串) !!1 // true (转布尔值)
+                context = this
+                args = arguments
+                if (now - previous > wait) {
+                    func.apply(context, arguments)
+                    previous = now
+                }
+            }
+        }
+
+        //实现二：定时器
+        //当触发一个事件的时候，我们设置一个定时器，再触发事件的时候，如果这个定时器还存在，就不执行
+        //如果定时器不存在了，就执行时间函数，同时清空定时器，再设置一个新的定时器
+
+        function throttle2(func,wait) {
+            let context,args,timer
+            return function () {
+                context = this
+                args = arguments
+                if (!timer) {
+                    timer = setTimeout(function(){
+                        timer = null
+                        func.apply(context,args)
+                    },wait)
+                }
+            }
+        }
+
+        //两个方法的对比：
+        //1.第一种事件一开始就会立刻执行，第二种事件会在n秒后第一次执行
+        //2.第一种事件停止触发后没有办法再执行，第二种事件停止触发后依然会再次执行一次事件
+
+        //通过两个方法异同的对比，可以综合下两种方法的优势：
+        //既可以一开始就会立刻执行，也可以在事件停止触发后再执行一次
+
+        function throttle3(func,wait) {
+            let timer,context,args
+            let previous = 0
+            var later = function () {
+                previous = +new Date()
+                timer = null
+                func.apply(context,args)
+            }
+            var throttled = function () {
+                context = this
+                args = arguments
+                console.log('开始执行throttled')
+                var now = +new Date()
+                console.log('现在的时间戳---'+ now)
+                //距离下次触发func的剩余时间
+                var remaining = wait - (now - previous)
+                //如果没有剩余时间或者你修改了系统时间
+                if (remaining <= 0 || remaining > wait) {
+                    if (timer) {
+                        clearTimeout(timer)
+                        timer = null
+                    }
+                    previous = now
+                    func.apply(context,args)
+                } else if (!timer) {
+                    timer = setTimeout(later,remaining)
+                }
+            }
+            return throttled
+        }
+
+        //再次优化：有时候，开发者可能也需要无头有尾或者有头无尾的应用场景
+        //所有我们需要设置一个options作为第三个参数，然后根据传的值判断选用什么效果
+        //做如下约定：
+        //leading:false 表示禁用第一次执行
+        //trailing:false 表示禁用事件停止触发后的回调
+
+        function throttle4(func,wait,options) {
+            let context,args,timer
+            let previous = 0
+            if (!options) {
+                options = {}
+            }
+            var later = function () {
+                previous = options.leading === false ? 0 : new Date().getTime()
+                timer = null
+                func.apply(context,args)
+                if (!timer) {
+                    context = args = null
+                }
+            }
+            var throttled = function () {
+                let now = new Date().getTime()
+                if (!previous && options.leading === false) {
+                    previous = now
+                }
+                let remaining = wait - (now - previous)
+                context = this
+                args = arguments
+                if (remaining <= 0 || remaining > wait) {
+                    if (timer) {
+                        clearTimeout(timer)
+                        timer = null
+                    }
+                    previous = now
+                    func.apply(context,args)
+                    if (!timer) {
+                        context = args = null
+                    } else if (!timer && options.trailing !== false) {
+                        timer = setTimeout(later,remaining)
+                    }
+                }
+            }
+            throttled.cancel = function () {
+                clearTimeout(timer)
+                previous = 0
+                timer = null
+            }
+            return throttled
+        }
+
+
+        function test() {
+            let count = 1
+            let container = document.getElementById('container')
+            function getUserAction() {
+                container.innerHTML = count++
+            }
+            //在最终实现的throttle4中，要注意leading:false和trailing:false不能同时设置
+            //因为 trailing 设置为 false，停止触发的时候不会设置定时器
+            //所以只要再过了设置的时间，再移入的话，就会立刻执行，就违反了 leading: false，bug 就出来了
+            //那最终的throttle只有三种用法
+            //1.container.onmousemove = throttle(getUserAction, 3000)
+            //2.container.onmousemove = throttle(getUserAction, 1000, {leading: false });
+            //3.container.onmousemove = throttle(getUserAction, 1000, {trailling: false });
+            //至此，underscore中的throttle函数便实现了    
+            container.onmousemove = throttle4(getUserAction,3000)
+        }
+
+        test()
+    </script>
+</body>
+
+</html>
