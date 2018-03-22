@@ -25,7 +25,7 @@
     <script>
         //场景：频繁的事件触发，导致复杂的回调函数或是ajax请求被多次调用，那么可能造成卡顿
         //防抖的基本原理：事件触发n秒之内不再触发事件，才执行回调函数或是事件处理函数
-        //如果n秒内又触发了新的事件，那么就以新的事件为标准，同样n秒后才执行
+        //如果n秒内又触发了新的事件，那么就以新的事件触发事件为准，同样n秒后才执行
         function test() {
             let count = 1
             let container = document.getElementById('container')
